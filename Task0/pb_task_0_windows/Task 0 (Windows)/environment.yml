@@ -1,0 +1,19 @@
+name: PB_9999
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - opencv
+  - matplotlib
+  - numpy
+  - python=3.9.*
+  - jupyter
+  - ipykernel
+  - jupyterlab
+  - pyzbar
+  - pyzmq
+  - pip:
+    - cbor
+  
+
+
