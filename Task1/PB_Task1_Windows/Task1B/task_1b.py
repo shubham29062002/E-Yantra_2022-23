@@ -27,6 +27,8 @@
 ## You have to implement this task with the five available  ##
 ## modules for this task                                    ##
 ##############################################################
+from audioop import reverse
+from cmath import inf
 import numpy as np
 import cv2
 from cv2 import aruco
@@ -68,7 +70,7 @@ def detect_Qr_details(image):
 
     ##############	ADD YOUR CODE HERE	##############
     for code in pyzbar.decode(image=image):
-        Qr_codes_details[code.data.decode('Utf-8')] = [code.rect.left+code.rect.width/2, code.rect.top+code.rect.height/2]
+        Qr_codes_details[code.data.decode('Utf-8')] = [int(code.rect.left+code.rect.width/2), int(code.rect.top+code.rect.height/2)]
     ##################################################
     
     return Qr_codes_details    
@@ -102,38 +104,57 @@ def detect_ArUco_details(image):
     ArUco_corners = {}
     
     ##############	ADD YOUR CODE HERE	##############
-    arucoDict = aruco.Dictionary_get(aruco.DICT_5X5_50)
+    image=cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    arucoDict = aruco.Dictionary_get(aruco.DICT_5X5_1000)
     arucoParams = aruco.DetectorParameters_create()
     corners, ids, rejected = aruco.detectMarkers(image, arucoDict, parameters=arucoParams)
 
     for i, id in enumerate(ids):
-        ArUco_corners[id[0]] = corners[i][0]
+        idd = int(id[0])
+        ArUco_corners[idd] = corners[i][0]
 
         #center
-        center_x = abs(ArUco_corners[id[0]][0][0] + ArUco_corners[id[0]][2][0])/2
-        center_y = abs(ArUco_corners[id[0]][1][1] + ArUco_corners[id[0]][3][1])/2
+        center_x = round(abs(ArUco_corners[id[0]][0][0] + ArUco_corners[id[0]][2][0])/2)
+        center_y = round(abs(ArUco_corners[id[0]][1][1] + ArUco_corners[id[0]][3][1])/2)
 
         #angle
-        tl_tr_center_x = int((ArUco_corners[id[0]][0][0] + ArUco_corners[id[0]][1][0]) / 2)
-        tl_tr_center_y = int((ArUco_corners[id[0]][0][1] + ArUco_corners[id[0]][1][1]) / 2) 
+        tl_tr_center_x = round((ArUco_corners[id[0]][0][0] + ArUco_corners[id[0]][1][0]) / 2)
+        tl_tr_center_y = round((ArUco_corners[id[0]][0][1] + ArUco_corners[id[0]][1][1]) / 2) 
 
-        #slope = (ArUco_corners[id[0]][0][1] - ArUco_corners[id[0]][1][1])/(ArUco_corners[id[0]][0][0] - ArUco_corners[id[0]][1][0])
-        slope = (-(tl_tr_center_y-center_y))/(tl_tr_center_x-center_x)
-        M1 = 10**9
-        deg = math.degrees(math.atan(abs((slope - M1)/(1+M1*slope))))
+        # deltaX = ArUco_corners[id[0]][2][0] - ArUco_corners[id[0]][1][0]
+        # deltaY = ArUco_corners[id[0]][2][1] - ArUco_corners[id[0]][1][1]
+        # slope = deltaY/deltaX
+        
+        # if tl_tr_center_x-center_x > 0.001 or tl_tr_center_x-center_x < -0.001:
+        #     slope = (-(tl_tr_center_y-center_y))/(tl_tr_center_x-center_x)
+        # else:
+        #     slope = inf
+        # slope = (-(tl_tr_center_y-center_y))/(tl_tr_center_x-center_x)
+
+        deg = round(math.degrees(math.atan2((center_y-tl_tr_center_y),(tl_tr_center_x-center_x))))
         angle = 0
+        
         if tl_tr_center_x < center_x and tl_tr_center_y < center_y:
-            angle = deg
+            angle = deg - 90
         elif tl_tr_center_x < center_x and tl_tr_center_y > center_y:
-            angle = 180-deg
+            angle = 360 + deg - 90
         elif tl_tr_center_x > center_x and tl_tr_center_y < center_y:
-            angle = -deg
+            angle = deg - 90
         elif tl_tr_center_x > center_x and tl_tr_center_y > center_y:
-            angle = -(180-deg)
+            angle = deg - 90
         else:
             angle = 0
+        
+        # angle = deg
 
-        ArUco_details_dict[id[0]] = [[int(center_x), int(center_y)], int(angle)]
+        ArUco_details_dict[idd] = [[center_x, center_y], angle]
+    
+    #sorting the Dictionaries
+    sort_data = sorted(ArUco_corners.items())
+    ArUco_corners = dict(sort_data)
+
+    sort_data = sorted(ArUco_details_dict.items())
+    ArUco_details_dict = dict(sort_data)
     ##################################################
     
     return ArUco_details_dict, ArUco_corners 
@@ -218,6 +239,7 @@ if __name__ == "__main__":
         else:    
             ArUco_details_dict, ArUco_corners = detect_ArUco_details(img)
             print("Detected details of ArUco: " , ArUco_details_dict)
+            print("Aruco Corners Details: ", ArUco_corners)
 
             #displaying the marked image
             img = mark_ArUco_image(img, ArUco_details_dict, ArUco_corners)  
