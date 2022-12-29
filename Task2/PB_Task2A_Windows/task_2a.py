@@ -63,10 +63,152 @@ def control_logic(sim):
 	control_logic(sim)
 	"""
 	##############  ADD YOUR CODE HERE  ##############
-	
+	c=0
+
+	c1=detect_distance_sensor_1(sim)
+	c2=detect_distance_sensor_2(sim)
+	c3=detect_distance_sensor_3(sim)
+
+	lj=sim.getObject('/Diff_Drive_Bot/left_joint')
+	rj=sim.getObject('/Diff_Drive_Bot/right_joint')
+
+	def left_turn(f=1):
+		sim.setJointTargetVelocity(rj,f*2)
+		sim.setJointTargetVelocity(lj,f*(-2))
+
+	def right_turn(f=1):
+		sim.setJointTargetVelocity(rj,f*(-2))
+		sim.setJointTargetVelocity(lj,f*2)
+
+	def forward(f=1):
+		sim.setJointTargetVelocity(rj,f*3)
+		sim.setJointTargetVelocity(lj,f*3)
+
+	def linearInterpolation(x, rX, rY, exX, exY):
+		y = exX+(x-rX)*(exY-exX)/(rY-rX)
+		return y
+
+	while(True):
+		c1=detect_distance_sensor_1(sim) #front
+		c2=detect_distance_sensor_2(sim) #right
+		c3=detect_distance_sensor_3(sim) #left
+
+		print("c1 : ", c1)
+		print("c2 : ", c2)
+		print("c3 : ", c3)
+
+		if(c2 < 13 and c2 != 0):
+			left_turn()
+		
+		elif(c3 < 13 and c3 != 0):
+			right_turn()
+
+		elif(c1==0 or c2 > 24):
+			forward()
+		
+		else:
+			if(c2 == 0):
+				right_turn()
+
+			elif(c3 == 0):
+				left_turn()
+			
+			else:
+				if(c2 > c3):
+					right_turn()
+				
+				elif(c2 < c3):
+					left_turn()
+				
+				else:
+					forward()
+
+		# if(c2!=0):
+		# 	if(c2 == 0):
+		# 		right_turn(0.5)
+
+		# 	elif(c3 == 0):
+		# 		left_turn(0.5)
 
 
+		# if(c2 > 15 and c2 < 25):
+		# 	forward()
+		
+		# elif(c2 <= 15):
+		# 	left_turn()
+		
+		# else:
+		# 	right_turn()
 
+
+	# def right_wall(c):
+	# 	c=c+1
+	# 	print("///________________///")
+	# 	print(c)
+	# 	print("///________________///")
+	# 	while(1):
+	# 		lj=sim.getObject('/Diff_Drive_Bot/left_joint')
+	# 		rj=sim.getObject('/Diff_Drive_Bot/right_joint')
+	# 		c1=detect_distance_sensor_1(sim)
+	# 		c2=detect_distance_sensor_2(sim)
+	# 		c3=detect_distance_sensor_3(sim)
+	# 		if(c1==0 and  c2>=17 and c2<=22):
+	# 			forward()
+	# 		elif(c1>0):
+	# 			if(c>5 and c1<30):
+	# 				sim.setJointTargetVelocity(rj,0)
+	# 				sim.setJointTargetVelocity(lj,0)
+	# 			else:
+	# 				left_turn()
+	# 		elif(c2==0):
+	# 			if(c>5 and c1<30):
+	# 				sim.setJointTargetVelocity(rj,0)
+	# 				sim.setJointTargetVelocity(lj,0)
+	# 			else:
+	# 				left_wall(c)
+	# 		elif( c2>22):
+	# 			right_turn()
+	# 			forward()
+	# 		elif(c2<17):
+	# 			left_turn()
+	# 			forward()
+			
+	# def left_wall(c):
+	# 	c=c+1
+	# 	print("///________________///")
+	# 	print(c)
+	# 	print("///________________///")
+	# 	while(1):
+	# 		lj=sim.getObject('/Diff_Drive_Bot/left_joint')
+	# 		rj=sim.getObject('/Diff_Drive_Bot/right_joint')
+	# 		c1=detect_distance_sensor_1(sim)
+	# 		c2=detect_distance_sensor_2(sim)
+	# 		c3=detect_distance_sensor_3(sim)
+	# 		if(c1==0 and  c3>=17 and c3<=22):
+	# 			forward()
+	# 		elif(c1>0):
+	# 			if(c>5 and c1<30):
+	# 				sim.setJointTargetVelocity(rj,0)
+	# 				sim.setJointTargetVelocity(lj,0)
+	# 			else:
+	# 				right_turn()
+	# 		elif(c3==0):
+	# 			if(c>5 and c1<30):
+	# 				sim.setJointTargetVelocity(rj,0)
+	# 				sim.setJointTargetVelocity(lj,0)
+	# 			else:
+	# 				right_wall(c)
+	# 			# if((c1!=0 and c2==0) or (c1!=0 and c2!=0)):
+	# 			# 	left_turn()
+	# 		elif( c3>22):
+	# 			left_turn()
+	# 			forward()
+	# 		elif(c3<17):
+	# 			right_turn()
+	# 			forward()
+
+	# r=right_wall(c)
+	# print("count:-",c)
 	##################################################
 
 def detect_distance_sensor_1(sim):
@@ -91,12 +233,11 @@ def detect_distance_sensor_1(sim):
 	"""
 	distance = None
 	##############  ADD YOUR CODE HERE  ##############
-
-
-
-
+	d1=sim.getObject('/Diff_Drive_Bot/distance_sensor_1')
+	dist=sim.readProximitySensor(d1)
+	distance=dist[1]*100
 	##################################################
-	return distance
+	return int(distance)
 
 def detect_distance_sensor_2(sim):
 	"""
@@ -120,12 +261,40 @@ def detect_distance_sensor_2(sim):
 	"""
 	distance = None
 	##############  ADD YOUR CODE HERE  ##############
-
-
-
-
+	d1=sim.getObject('/Diff_Drive_Bot/distance_sensor_2')
+	dist=sim.readProximitySensor(d1)
+	distance=dist[1]*100
 	##################################################
-	return distance
+	return int(distance)
+
+def detect_distance_sensor_3(sim):
+	"""
+	Purpose:
+	---
+	Returns the distance of obstacle detected by proximity sensor named 'distance_sensor_3'
+
+	Input Arguments:
+	---
+	`sim`    :   [ object ]
+		ZeroMQ RemoteAPI object
+
+	Returns:
+	---
+	distance  :  [ float ]
+	    distance of obstacle from sensor
+
+	Example call:
+	---
+	distance_1 = detect_distance_sensor_1(sim)
+	"""
+	distance = None
+	##############  ADD YOUR CODE HERE  ##############
+	d1=sim.getObject('/Diff_Drive_Bot/distance_sensor_3')
+	dist=sim.readProximitySensor(d1)
+	distance=dist[1]*100
+	##################################################
+	return int(distance)
+	
 
 ######### YOU ARE NOT ALLOWED TO MAKE CHANGES TO THE MAIN CODE BELOW #########
 

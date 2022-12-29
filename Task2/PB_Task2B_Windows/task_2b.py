@@ -6,7 +6,7 @@
 *        =================================================
 *                                                         
 *  This script is intended for implementation of Task 2B   
-*  of Pharma Bot (PB) ThemeeYRC 2022-23).
+*  of Pharma Bot (PB) Theme (eYRC 2022-23).
 *
 *  Filename:			task_2b.py
 *  Created:				
@@ -32,16 +32,11 @@
 ####################### IMPORT MODULES #######################
 ## You are not allowed to make any changes in this section. ##
 ##############################################################
-from concurrent.futures import thread
-from configparser import Interpolation
 import  sys
 import traceback
 import time
 import os
 import math
-from turtle import colormode
-
-from matplotlib.pyplot import hsv
 from zmqRemoteApi import RemoteAPIClient
 import zmq
 import numpy as np
@@ -51,10 +46,305 @@ from pyzbar.pyzbar import decode
 ##############################################################
 
 ################# ADD UTILITY FUNCTIONS HERE #################
+c=0
+d=0
+e= None
+st=0
+def right_turn(sim):
+	global c
+	c+=1
+	global d
+	d=0
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,-0.8)
+	sim.setJointTargetVelocity(ljoint,0.8)
+
+def left_turn(sim):
+	global c
+	c+=1
+	global d
+	d=0
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,0.8)
+	sim.setJointTargetVelocity(ljoint,-0.8)
+
+def right_turn2(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,-0.2)
+	sim.setJointTargetVelocity(ljoint,0.2)
+
+def left_turn2(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,0.2)
+	sim.setJointTargetVelocity(ljoint,-0.2)
+
+def stop(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,0)
+	sim.setJointTargetVelocity(ljoint,0)
+	
+def node_contour(sim):
+	visionSensorHandle=sim.getObject('/Diff_Drive_Bot/vision_sensor')
+	img, resX, resY = sim.getVisionSensorCharImage(visionSensorHandle)
+	img = np.frombuffer(img, dtype=np.uint8).reshape(resX, resY, 3)
+	img = cv2.flip(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), 0)
+	hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	low_yellow = np.array([20, 100, 100])
+	high_yellow = np.array([30, 255, 255])
+	or_mask = cv2.inRange(hsv_frame, low_yellow,high_yellow)
+	img1 = cv2.bitwise_and(img, img, mask=or_mask)
+	imgray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+	contours, hierarchy = cv2.findContours(imgray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	return contours
 
 
+def blackline_contour(sim):
+	color = [255, 255, 255]
+	visionSensorHandle=sim.getObject('/Diff_Drive_Bot/vision_sensor')
+	img, resX, resY = sim.getVisionSensorCharImage(visionSensorHandle)
+	img = np.frombuffer(img, dtype=np.uint8).reshape(resX, resY, 3)
+	img = cv2.flip(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), 0)
+	crop_img = img[0:int(img.shape[0]/2), 0:int(img.shape[1])]
+	gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
+	ret, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY_INV)
+	contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	return len(contours)
+
+def detect(sim):
+	global d
+	global c
+	global e
+	flag=0
+	if len(node_contour(sim))!=0:
+		if c==4 or c==8 or c==12:
+				forward(sim)
+		while(len(node_contour(sim))!=0): 
+			d+=1
+			if c==4:
+				while(flag==0):
+					activate(sim,"checkpoint E")
+					if read_qr_code(sim)==type(e):
+						continue
+					elif read_qr_code(sim)=="Orange Cone" or read_qr_code(sim)=="Blue Cylinder" or read_qr_code(sim)=="Pink Cuboid":
+						stop(sim)
+						deliver(sim,"checkpoint E")
+						deactivate(sim,"checkpoint E")
+						flag=1
+						forward2(sim)
+						break
+			elif c==8:
+				while(flag==0):
+					activate(sim,"checkpoint I")
+					if read_qr_code(sim)==type(e):
+						continue
+					elif read_qr_code(sim)=="Orange Cone" or read_qr_code(sim)=="Blue Cylinder" or read_qr_code(sim)=="Pink Cuboid":
+						stop(sim)
+						deliver(sim,"checkpoint I")
+						deactivate(sim,"checkpoint I")
+						flag=1
+						forward2(sim)
+						break
+			elif c==12:
+				while(flag==0):
+					activate(sim,"checkpoint M")
+					if read_qr_code(sim)==type(e):
+						continue
+					elif read_qr_code(sim)=="Orange Cone" or read_qr_code(sim)=="Blue Cylinder" or read_qr_code(sim)=="Pink Cuboid":
+						stop(sim)
+						deliver(sim,"checkpoint M")
+						deactivate(sim,"checkpoint M")
+						flag=1
+						forward2(sim)
+						break
+
+	else:
+		return d
+	
+def activate(sim,checkpoint):
+	arena_dummy_handle = sim.getObject("/Arena_dummy") 
+	childscript_handle = sim.getScript(sim.scripttype_childscript, arena_dummy_handle, "")
+	sim.callScriptFunction("activate_qr_code", childscript_handle, checkpoint)
+
+def deactivate(sim,checkpoint):
+	arena_dummy_handle = sim.getObject("/Arena_dummy") 
+	childscript_handle = sim.getScript(sim.scripttype_childscript, arena_dummy_handle, "")
+	sim.callScriptFunction("deactivate_qr_code", childscript_handle, checkpoint)
+
+def deliver(sim,checkpoint):
+	pack=read_qr_code(sim)
+	packages={"Orange Cone":"package_1", "Blue Cylinder":"package_2", "Pink Cuboid":"package_3"}
+	arena_dummy_handle = sim.getObject("/Arena_dummy") 
+	childscript_handle = sim.getScript(sim.scripttype_childscript, arena_dummy_handle, "")
+	sim.callScriptFunction("deliver_package", childscript_handle,packages[pack], checkpoint)
 
 
+def angle2(sim):
+	list=[]
+	visionSensorHandle=sim.getObject('/Diff_Drive_Bot/vision_sensor')
+	img, resX, resY = sim.getVisionSensorCharImage(visionSensorHandle)
+	img = np.frombuffer(img, dtype=np.uint8).reshape(resX, resY, 3)
+	img = cv2.flip(img, 0)
+	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	ret, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+	contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	approxs = []
+	for contour in contours:
+		approx = cv2.approxPolyDP(contour, 0.1 * cv2.arcLength(contour, True), True)
+		cv2.drawContours( img, [approx], -1, (0, 255, 0), 5)
+		approxs.append(approx)
+	contourMaxArea = max(approxs, key=cv2.contourArea)
+	
+	M = cv2.moments(contourMaxArea)
+	if M['m00'] != 0:
+		cx = int(M['m10']/M['m00'])
+		cy = int(M['m01']/M['m00'])
+		cv2.drawContours(img, [contourMaxArea], -1, (0, 255, 0), 2)
+		cv2.circle(img, (cx, cy), 7, (0, 0, 255), -1)
+		cv2.putText(img, "center", (cx - 20, cy - 20),
+				cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+	list.append(cx)
+	list.append(cy)
+
+	deg1 = round(math.degrees(math.atan2((contourMaxArea[1][0][1]-contourMaxArea[0][0][1]), (contourMaxArea[0][0][0]-contourMaxArea[1][0][0]))))
+	deg2 = round(math.degrees(math.atan2((contourMaxArea[2][0][1]-contourMaxArea[1][0][1]), (contourMaxArea[1][0][0]-contourMaxArea[2][0][0]))))
+	
+	absDeg1=abs(90-deg1)
+	absDeg2=abs(90-deg2)
+
+	max_deg = deg2 if absDeg1>absDeg2 else deg1
+	list.append(max_deg)
+	return list
+
+def forward2(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,2.0)
+	sim.setJointTargetVelocity(ljoint,2.0)	
+
+def forward(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,1.0)
+	sim.setJointTargetVelocity(ljoint,1.0)
+
+def turn(sim):
+	global d
+	global c
+	global st
+	c1=0
+	c2=0
+	c3=0
+	c4=0
+	if d>0 and c==0:
+		left_turn(sim)
+		while(1):
+			while(blackline_contour(sim)==2):
+				c1+=1
+			while(blackline_contour(sim)==1 ):
+				c3+=1
+			while(blackline_contour(sim)==2 and c1>0):
+				c2+=1
+			while(blackline_contour(sim)==1 and c3>0 ):
+				c4+=1
+			while(blackline_contour(sim)==2 and c1>0 and c2>0):
+				x_coordinate(sim)
+				break
+			break		
+	elif d>0 and (c==1 or c==3 or c==5 or c==7 or c==9 or c==11 or c==13 or c==15):
+		right_turn(sim)
+		while(1):
+			while(blackline_contour(sim)==2):
+				c1+=1
+			while(blackline_contour(sim)==1 ):
+				c3+=1
+			while(blackline_contour(sim)==2 and c1>0):
+				c2+=1
+			while(blackline_contour(sim)==1 and c3>0 ):
+				c4+=1
+			while(blackline_contour(sim)==2 and c1>0 and c2>0):
+				# stop()
+				x_coordinate(sim)
+				break
+			break		
+
+			
+	elif d>0 and (c==2  or c==6 or c==10  or c==14 ):
+		left_turn(sim)
+		while(1):
+			while(blackline_contour(sim)==2):
+				c1+=1
+			while(blackline_contour(sim)==1 ):
+				c3+=1
+			while(blackline_contour(sim)==2 and c1>0):
+				c2+=1
+			while(blackline_contour(sim)==1 and c3>0 ):
+				c4+=1
+			while(blackline_contour(sim)==2 and c1>0 and c2>0):
+				stop(sim)
+				break
+			break		
+
+			
+
+	elif d>0 and (c==4 or c==8 or c==12):
+		c+=1
+		d=0
+	
+	elif d>0 and c==16:
+		st=1
+		d=0
+
+def correction(sim):
+	global e
+	if angle2(sim)[2]>91 :
+		stop(sim)
+		left_turn2(sim)
+
+	elif angle2(sim)[2]<89:
+		stop(sim)
+		right_turn2(sim)
+
+	elif angle2(sim)[2]<=91 and angle2(sim)[2]>=89:
+		forward2(sim)
+
+def x_coordinate(sim):
+	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+	sim.setJointTargetVelocity(rjoint,1)
+	sim.setJointTargetVelocity(ljoint,1)
+	while(angle2(sim)[0]<260):
+		sim.setJointTargetVelocity(rjoint,1.5)
+		sim.setJointTargetVelocity(ljoint,0.7)
+		while(angle2(sim)[0]<260):
+			continue
+
+	while(angle2(sim)[0]>260):
+		sim.setJointTargetVelocity(ljoint,1.5)
+		sim.setJointTargetVelocity(rjoint,0.7)
+		while(angle2(sim)[0]>260):
+			continue
+
+# def x_coordinate2(sim):
+# 	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
+# 	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
+# 	sim.setJointTargetVelocity(rjoint,1)
+# 	sim.setJointTargetVelocity(ljoint,1)
+# 	while(angle2(sim)[0]<266):
+# 		sim.setJointTargetVelocity(rjoint,0.8)
+# 		sim.setJointTargetVelocity(ljoint,0.6)
+# 		while(angle2(sim)[0]<266):
+# 			continue
+
+# 	while(angle2(sim)[0]>246):
+# 		sim.setJointTargetVelocity(ljoint,0.8)
+# 		sim.setJointTargetVelocity(rjoint,0.6)
+# 		while(angle2(sim)[0]>246):
+# 			continue
 
 ##############################################################
 
@@ -83,39 +373,38 @@ def control_logic(sim):
 	rjoint=sim.getObject('/Diff_Drive_Bot/right_joint')
 	ljoint=sim.getObject('/Diff_Drive_Bot/left_joint')
 	visionSensorHandle=sim.getObject('/Diff_Drive_Bot/vision_sensor')
-
-	sim.setJointTargetVelocity(rjoint,0.1)
-	sim.setJointTargetVelocity(ljoint,0.1)
+	sim.setJointTargetVelocity(rjoint,1)
+	sim.setJointTargetVelocity(ljoint,1)
 	
+
 	while(1):
-		img, resX, resY = sim.getVisionSensorCharImage(visionSensorHandle)
-		img = np.frombuffer(img, dtype=np.uint8).reshape(resX, resY, 3)
-		img = cv2.resize(img, (int(resX/2), int(resY/2)), interpolation=cv2.INTER_AREA)
-		# img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-		# img = cv2.flip(img, 0)
-		# cv2.imshow('dcv', img)
-		# cv2.waitKey(10)
+		global e
+		global c
+		global st
+		D=detect(sim)
+		if st==1:
+			stop(sim)
+			break
+		elif D==0:
+			# x_coordinate2(sim)
+			correction(sim)
+		elif type(D)==type(e):
+			pass
+		elif D>0:
+			while(1):
+				if(detect(sim)>0):
+					turn(sim)
+					forward2(sim)
+					break
+				else: continue
+		else:	
+			# x_coordinate2(sim)
+			correction(sim)
 
-		hsv_frame = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-		cv2.imshow('hsv', hsv_frame)
 		
-		low_yellow = np.array([30, 90, 90])
-		high_yellow = np.array([60, 255, 255])
-		or_mask = cv2.inRange(hsv_frame, low_yellow,high_yellow)
 
-		img1 = cv2.bitwise_and(img, img, mask=or_mask)
-		imgray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-		cv2.imshow('Gray', imgray)
-
-		contours, hierarchy = cv2.findContours(imgray, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-		if len(contours)==0:
-			print('false')
-		else:
-			print('true')
 		
-		cv2.waitKey(1)
 	
-	cv2.destroyAllWindow()
 	##################################################
 
 def read_qr_code(sim):
@@ -141,6 +430,14 @@ def read_qr_code(sim):
 	"""
 	qr_message = None
 	##############  ADD YOUR CODE HERE  ##############
+	visionSensorHandle=sim.getObject('/Diff_Drive_Bot/vision_sensor')
+	img, resX, resY = sim.getVisionSensorCharImage(visionSensorHandle)
+	img = np.frombuffer(img, dtype=np.uint8).reshape(resX, resY, 3)
+	img = cv2.flip(img, 0)
+	for code in decode(img):
+		qr_message=code.data.decode('Utf-8')
+
+
 
 	##################################################
 	return qr_message
